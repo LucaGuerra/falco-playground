@@ -33,14 +33,58 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a') as ofp:
               print(f'is_latest={is_latest}'.lower(), file=ofp)
 
-
   release:
     runs-on: ubuntu-latest
     needs: [release-settings]
     if: ${{ needs.release-settings.outputs.is_latest == 'true' }}
+    env:
+      AWS_S3_REGION: eu-west-1
+      AWS_S3_BUCKET: falco-playground
     steps:
       - name: Check out repository
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       
-      - name: Time to release
-        run: echo "now it is the time to release ..."
+      - name: Setup Node
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: 18
+
+      - name: Download the latest Falco WASM version
+        run: |
+          curl --remote-name-all -L $(cat ./falco_stable_url.txt)
+
+      - name: Extract artifact
+        run: |
+          tar -xvf falco-*-wasm.tar.gz
+          mv falco-*-wasm/usr/bin/falco.wasm ./public
+          mv falco-*-wasm/usr/bin/falco.js ./src/Hooks/
+
+      - name: Remove Unwanted Artifacts
+        run: rm -rf falco-*-wasm.tar.gz falco-*-wasm
+
+      - name: Test
+        uses: cypress-io/github-action@v5
+        with:
+          wait-on: http://localhost:5173
+          start: npx vite --host
+
+      - name: Install and build
+        run: npm install && npm run build
+
+      - name: Upload release artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd dist
+          tar cvf falco-playground-${{ github.event.release.tag_name }}.tar.gz .
+          gh release upload ${{ github.event.release.tag_name }} dist/falco-playground-${{ github.event.release.tag_name }}.tar.gz
+
+    #   - name: Configure AWS credentials
+    #     uses: aws-actions/configure-aws-credentials@v4
+    #     with:
+    #       role-to-assume: "arn:aws:iam::292999226676:role/XXXX_MISSING_ROLE_XXXXX"
+    #       aws-region: ${{ env.AWS_S3_REGION }}
+
+    #   - name: Upload files to S3
+    #     run: aws s3 sync ./dist s3://${{ env.AWS_S3_BUCKET }}/ --delete
+
