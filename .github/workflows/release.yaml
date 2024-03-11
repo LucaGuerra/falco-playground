@@ -25,8 +25,10 @@ jobs:
           import os
           import sys
 
-          tag_name = '${{ github.event.release.tag_name }}'
-          is_latest = '${{ steps.latest_release.outputs.release }}' == tag_name
+          release_id = '${{ github.event.release.id }}'
+          is_latest = '${{ steps.latest_release.outputs.release_id }}' == release_id
+
+          print(f"is_latest = {is_latest}")
 
           with open(os.environ['GITHUB_OUTPUT'], 'a') as ofp:
               print(f'is_latest={is_latest}'.lower(), file=ofp)
