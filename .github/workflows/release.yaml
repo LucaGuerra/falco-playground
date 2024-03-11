@@ -1,0 +1,44 @@
+name: Release to play.falco.org
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  release-settings:
+    runs-on: ubuntu-latest
+    outputs:
+      is_latest: ${{ steps.get_settings.outputs.is_latest }} 
+    steps:
+      - name: Get latest release
+        uses: rez0n/actions-github-release@27a57820ee808f8fd940c8a9d1f7188f854aa2b5 # v2.0
+        id: latest_release
+        env:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          type: "stable"
+
+      - name: Check if the current release is the latest
+        id: get_settings
+        shell: python
+        run: |
+          import os
+          import sys
+
+          tag_name = '${{ github.event.release.tag_name }}'
+          is_latest = '${{ steps.latest_release.outputs.release }}' == tag_name
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as ofp:
+              print(f'is_latest={is_latest}'.lower(), file=ofp)
+
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [release-settings]
+    if: ${{ needs.release-settings.outputs.is_latest }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      
+      - name: Time to release
+        run: echo "now it is the time to release ..."
